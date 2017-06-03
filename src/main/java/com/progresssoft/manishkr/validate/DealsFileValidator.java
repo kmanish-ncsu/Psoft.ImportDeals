@@ -39,24 +39,22 @@ public class DealsFileValidator {
         AtomicInteger atomicInvalidDealId = new AtomicInteger(invalidDealDao.getMaxId());
         for(String[] currDeal : allDeals){
             String dealId = currDeal[0];
-            String fromCurrency = getCurrency(currDeal[1]);
+            boolean validFromCurrency = validateCurrency(currDeal[1]);
+            boolean validToCurrency = validateCurrency(currDeal[2]);
 
-            MutableInt count = freq.get(fromCurrency);
-            if (count == null) {
-                freq.put(fromCurrency, new MutableInt());
-            }
-            else {
-                count.increment();
-            }
+            MutableInt count = freq.get(currDeal[1]);
+            if (count == null) {freq.put(currDeal[1], new MutableInt());}
+            else {count.increment();}
 
-            String toCurrency = getCurrency(currDeal[2]);
+
             Timestamp timestamp = getTimeStamp(currDeal[3]);
             BigDecimal amount = new BigDecimal(currDeal[4]);
 
-            if(dealId == null || fromCurrency == null || toCurrency == null || amount == null || timestamp == null){
-                invalidDeals.add(new InvalidDeal(atomicInvalidDealId.incrementAndGet(),dealId,fromCurrency,toCurrency,timestamp,amount,dsf));
+            if(dealId == null || !validFromCurrency || !validToCurrency || amount == null || timestamp == null){
+                invalidDeals.add(new InvalidDeal(atomicInvalidDealId.incrementAndGet(),dealId,currDeal[1],currDeal[2],timestamp,amount,dsf));
+                System.err.println("INVALID DDALS "+invalidDeals.toString());
             }else{
-                deals.add(new Deal(atomicDealId.incrementAndGet(),dealId,fromCurrency,toCurrency,timestamp,amount,dsf));
+                deals.add(new Deal(atomicDealId.incrementAndGet(),dealId,currDeal[1],currDeal[2],timestamp,amount,dsf));
             }
 
         }
@@ -71,11 +69,12 @@ public class DealsFileValidator {
         }
     }
 
-    private String getCurrency(String currency){
+    private boolean validateCurrency(String currency){
         try{
-            return Currency.getInstance(currency).getCurrencyCode();
+            Currency.getInstance(currency).getCurrencyCode();
+            return true;
         }catch (IllegalArgumentException ex){
-            return null;
+            return false;
         }
     }
 }

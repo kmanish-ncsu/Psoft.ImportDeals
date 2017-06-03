@@ -5,10 +5,6 @@
 <body>
 <h1>Unprocessed files</h1>
 <%--<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>--%>
-<%--<h1>File Details</h1>--%>
-<%--File Name : ${dsf.sourceFile}--%>
-<%--Valid Rows : ${dsf.validRows}--%>
-<%--Invalid Rows: ${dsf.invalidRows}--%>
 <c:choose>
     <c:when test="${unprocessedSourceFiles != null}">
         <form method="POST" action="${pageContext.request.contextPath}/importdeals/process">
@@ -34,15 +30,16 @@
 <h1>Processed files</h1>
 <c:choose>
     <c:when test="${processedSourceFiles != null}">
-        <form method="GET" action="${pageContext.request.contextPath}/importdeals/filedetail">
+        <form method="GET" action="${pageContext.request.contextPath}/importdeals/filedetails">
             <table>
                 <tr>
                     <th>File</th>
                 </tr>
-                <c:forEach var="listItem" items="${unprocessedSourceFiles}">
+                <c:forEach var="listItem" items="${processedSourceFiles}">
                     <tr class="spec">
                         <td class="alt"><c:out value="${listItem}" /></td>
-                        <td><button type="submit" value="${listItem}">Detail</button></td>
+                        <td><button type="submit" name="file" value="${listItem}">Detail</button></td>
+
                     </tr>
                 </c:forEach>
 
@@ -54,9 +51,9 @@
     </c:when>
 </c:choose>
 
-<c:when test="${unprocessedSourceFiles != null}">
+<c:choose><c:when test="${unprocessedSourceFiles != null}">
     ${fileToProcessMsg}
-</c:when>
+</c:when></c:choose>
 
 </body>
 </html>

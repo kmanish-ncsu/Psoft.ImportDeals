@@ -1,4 +1,4 @@
-package com.progresssoft.manishkr;
+package com.progresssoft.manishkr.exception;
 
 public class FileAlreadyProcessedException extends Exception{
     public FileAlreadyProcessedException () {

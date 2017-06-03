@@ -1,10 +1,10 @@
 package com.progresssoft.manishkr.controller;
 
-import com.progresssoft.manishkr.FileAlreadyProcessedException;
+import com.progresssoft.manishkr.exception.FileAlreadyProcessedException;
+import com.progresssoft.manishkr.exception.FileMoveException;
+import com.progresssoft.manishkr.exception.FileParseException;
 import com.progresssoft.manishkr.service.ImportDealsService;
 import com.progresssoft.manishkr.util.FileUtil;
-import com.univocity.parsers.csv.CsvParser;
-import com.univocity.parsers.csv.CsvParserSettings;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
@@ -14,8 +14,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
-import java.io.*;
-import java.util.ArrayList;
 import java.util.List;
 
 @Controller
@@ -23,10 +21,10 @@ import java.util.List;
 public class ImportDealsController {
 
     @Autowired
-    ImportDealsService importDealsService;
+    private ImportDealsService importDealsService;
 
     @Autowired
-    FileUtil fileUtil;
+    private FileUtil fileUtil;
 
 
     @Value("${unprocessed.file.folder}")
@@ -38,11 +36,20 @@ public class ImportDealsController {
     @RequestMapping(value = "/all", method = RequestMethod.GET)
     public ModelAndView all(@RequestParam(value = "sourceFileFolder", required = false) String sourceFileFolder) {
         List<String> unprocessedSourceFiles = fileUtil.getUnprocessedFiles();
+        List<String> processedSourceFiles = fileUtil.getProcessedFiles();
         ModelAndView model = new ModelAndView("all");
         if(unprocessedSourceFiles.size() > 0){
             model.addObject("unprocessedSourceFiles",unprocessedSourceFiles);
+
         }else {
             model.addObject("unprocessedSourceFiles",null);
+        }
+
+        if(processedSourceFiles.size() > 0){
+            model.addObject("processedSourceFiles",processedSourceFiles);
+        }else {
+
+            model.addObject("processedSourceFiles",null);
         }
 
         return model;
@@ -57,25 +64,30 @@ public class ImportDealsController {
         System.out.println(" Processing file: "+fileToProcess);
         long startTime = System.nanoTime();
         String fileToProcessMsg;
+        ModelAndView model = new ModelAndView("redirect:/importdeals/all");
         try {
             importDealsService.processFile(fileToProcess);
             fileToProcessMsg = fileToProcess+" processed successfully!";
+            long estimatedTime = System.nanoTime() - startTime;
+            fileToProcessMsg += "Time taken to process: "+(estimatedTime/1000000000)+" seconds" ;
         } catch (FileAlreadyProcessedException e) {
             fileToProcessMsg = fileToProcess+" already processed!";
-            e.printStackTrace();//TODO ?
+        } catch (FileParseException e) {
+            fileToProcessMsg = fileToProcess+" could not be processed!";
+        } catch (FileMoveException e) {
+            fileToProcessMsg = fileToProcess+" could not be moved!";
         }
-        long estimatedTime = System.nanoTime() - startTime;
-//        System.err.println("MOT SIZE>>>>>>>>>>>> "+allRows.size());
-        ModelAndView model = new ModelAndView("redirect:/importdeals/all");
-        fileToProcessMsg += "Time taken to process: "+(estimatedTime/1000000000)+" seconds" ;
+
         redir.addFlashAttribute("fileToProcessMsg",fileToProcessMsg);
         return model;
     }
 
 
 
-//    @RequestMapping(method = RequestMethod.GET, value = "/filedetails")
-//    protected String filedetails(@RequestParam(value = "fileToShowDetail") String fileToShowDetail){
-//        return fileToShowDetail+"..........FileDetail";
-//    }
+    @RequestMapping(method = RequestMethod.GET, value = "/filedetails")
+    protected ModelAndView filedetails(@RequestParam(value = "file") String file){
+        ModelAndView mav = new ModelAndView("filedetails");
+        mav.addObject("filedetails",importDealsService.getFileDetails(file));
+        return mav;
+    }
 }
