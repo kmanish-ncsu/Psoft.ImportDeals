@@ -37,6 +37,7 @@ CREATE TABLE `invalid_deal` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 
+#TRUNCATE
 truncate deal;commit;
 truncate invalid_deal;commit;
 truncate deal_count;commit;

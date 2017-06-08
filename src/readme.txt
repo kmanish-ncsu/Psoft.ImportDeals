@@ -19,3 +19,7 @@ Steps:
 9) To view a processed file's details, click on "Detail"
 10) Click "Home" to go to homepage
 11) To see latest currency count (deals per Ordering currency) click on "Curreny Count" on HomePage; click "Home" to go to HomePage
+12) To reprocess with same files, move all files from "processed.file.folder" to "unprocessed.file.folder" AND run the #TRUNCATE commands given in DDLs.sql
+
+Files are not processed automatically but are triggered for processing on clicking the "Process" button from homepage
+As of now, it takes 3 seconds to process & populate database for a 100,000 row csv deal file.
