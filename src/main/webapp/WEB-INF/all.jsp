@@ -4,7 +4,6 @@
 <html>
 <body>
 <h1>Unprocessed files</h1>
-<%--<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>--%>
 <c:choose>
     <c:when test="${unprocessedSourceFiles != null}">
         <form method="POST" action="${pageContext.request.contextPath}/importdeals/process">
@@ -54,6 +53,9 @@
 <c:choose><c:when test="${unprocessedSourceFiles != null}">
     ${fileToProcessMsg}
 </c:when></c:choose>
+
+<br>
+<input type="button" value="Currency Count" onclick="location.href='/importdeals/currencycount'">
 
 </body>
 </html>

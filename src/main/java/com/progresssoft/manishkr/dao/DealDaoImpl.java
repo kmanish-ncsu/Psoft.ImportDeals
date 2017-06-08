@@ -1,39 +1,35 @@
 package com.progresssoft.manishkr.dao;
 
 import com.progresssoft.manishkr.model.Deal;
-import com.progresssoft.manishkr.model.DealSourceFile;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Repository;
 
-import javax.persistence.EntityManager;
-import javax.persistence.FlushModeType;
 import javax.persistence.NoResultException;
-import javax.persistence.PersistenceContext;
-import javax.transaction.Transactional;
 
 @Repository
-public class DealDaoImpl implements DealDao{
+public class DealDaoImpl extends BaseDao implements DealDao {
 
-    @PersistenceContext
-    private EntityManager em;
+    private final static org.slf4j.Logger logger = LoggerFactory.getLogger(DealDaoImpl.class);
 
     public Integer getMaxId(){
         try{
-            Integer maxDealId = (Integer) em
+            Integer maxDealId = (Integer) getEm()
                     .createQuery("SELECT COALESCE(MAX(id), 0) FROM Deal ")
                     .getSingleResult();
             return maxDealId;
         }catch(NoResultException ex){
-            System.err.println("No results found for SELECT MAX(id) FROM Deal");
+            logger.debug("No results found for SELECT MAX(id) FROM Deal");
             return null;
         }
     }
 
     public void persist(Deal deal){
-        em.persist(deal);
+        logger.debug("Persisting Deal "+deal.toString());
+        getEm().persist(deal);
     }
 
     public void merge(Deal deal){
-        em.merge(deal);
+        logger.debug("Merging Deal "+deal.toString());
+        getEm().merge(deal);
     }
-
 }

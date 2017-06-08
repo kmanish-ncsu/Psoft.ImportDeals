@@ -101,4 +101,21 @@ public class Deal {
     public void setId(Integer id) {
         this.id = id;
     }
+
+    public String getMultiInsertSql(){
+        return "insert into deal values ";
+    }
+
+    @Override
+    public String toString() {
+        return "Deal{" +
+                "dealId='" + dealId + '\'' +
+                ", fromCurrency='" + fromCurrency + '\'' +
+                ", toCurrency='" + toCurrency + '\'' +
+                ", dealTimestamp=" + dealTimestamp +
+                ", amount=" + amount +
+                ", sourceFile=" + sourceFile +
+                '}';
+    }
+
 }

@@ -33,12 +33,18 @@ public class DealCount {
         this.id = id;
     }
 
-    public Currency getCurrency() {
-        return Currency.getInstance(currency);
+    public String getCurrency() {
+        try{
+            return Currency.getInstance(currency).getCurrencyCode();
+        }catch (IllegalArgumentException ex){
+            return currency+"(invalid)";
+        }
+
+
     }
 
-    public void setCurrency(Currency currency) {
-        this.currency = currency.getCurrencyCode();
+    public void setCurrency(String currency) {
+        this.currency = currency;
     }
 
     public Integer getCount() {
@@ -49,4 +55,11 @@ public class DealCount {
         this.count = count;
     }
 
+    @Override
+    public String toString() {
+        return "DealCount{" +
+                "currency='" + currency + '\'' +
+                ", count=" + count +
+                '}';
+    }
 }

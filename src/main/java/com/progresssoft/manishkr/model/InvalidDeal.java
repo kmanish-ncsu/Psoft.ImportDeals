@@ -100,4 +100,20 @@ public class InvalidDeal {
     public void setId(Integer id) {
         this.id = id;
     }
+
+    public String getMultiInsertSql(){
+        return "insert into invalid_deal values ";
+    }
+
+    @Override
+    public String toString() {
+        return "InvalidDeal{" +
+                "dealId='" + dealId + '\'' +
+                ", fromCurrency='" + fromCurrency + '\'' +
+                ", toCurrency='" + toCurrency + '\'' +
+                ", dealTimestamp=" + dealTimestamp +
+                ", amount=" + amount +
+                ", sourceFile=" + sourceFile +
+                '}';
+    }
 }

@@ -1,37 +1,25 @@
 package com.progresssoft.manishkr.dao;
 
-import com.progresssoft.manishkr.model.DealSourceFile;
-import com.progresssoft.manishkr.model.InvalidDeal;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Repository;
 
-import javax.persistence.EntityManager;
 import javax.persistence.NoResultException;
-import javax.persistence.PersistenceContext;
-import javax.transaction.Transactional;
 
 @Repository
-public class InvalidDealDaoImpl implements InvalidDealDao{
+public class InvalidDealDaoImpl extends BaseDao implements InvalidDealDao {
 
-    @PersistenceContext
-    private EntityManager em;
+    private final static org.slf4j.Logger logger = LoggerFactory.getLogger(InvalidDealDaoImpl.class);
 
     public Integer getMaxId(){
         try{
-            Integer maxInvalidDealId = (Integer) em
+            Integer maxInvalidDealId = (Integer) getEm()
                     .createQuery("SELECT COALESCE(MAX(id),0)  FROM InvalidDeal ")
                     .getSingleResult();
-
+            logger.debug("Found MAX(id) for InvalidDeal "+maxInvalidDealId);
             return maxInvalidDealId;
         }catch(NoResultException ex){
-            System.err.println("No results found for SELECT MAX(id) FROM InvalidDeal");
+            logger.debug("No results found for SELECT MAX(id) FROM InvalidDeal");
             return null;
         }
-    }
-    public void persist(InvalidDeal invalidDeal){
-        em.persist(invalidDeal);
-    }
-
-    public void merge(InvalidDeal invalidDeal){
-        em.merge(invalidDeal);
     }
 }

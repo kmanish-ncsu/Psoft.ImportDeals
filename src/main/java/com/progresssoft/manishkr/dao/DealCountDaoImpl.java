@@ -1,34 +1,46 @@
 package com.progresssoft.manishkr.dao;
 
+import com.progresssoft.manishkr.controller.ImportDealsController;
 import com.progresssoft.manishkr.model.DealCount;
-import com.progresssoft.manishkr.model.DealSourceFile;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Repository;
 
-import javax.persistence.EntityManager;
 import javax.persistence.NoResultException;
-import javax.persistence.PersistenceContext;
+import java.util.List;
 
 @Repository
-public class DealCountDaoImpl implements DealCountDao{
+public class DealCountDaoImpl extends BaseDao implements DealCountDao {
 
-    @PersistenceContext
-    private EntityManager em;
+    private final static org.slf4j.Logger logger = LoggerFactory.getLogger(DealCountDaoImpl.class);
 
     public DealCount findByCurrencyCode(String currency) {
         try{
-            DealCount dealCount = (DealCount) em
+            DealCount dealCount = (DealCount) getEm()
                     .createQuery("SELECT dc FROM DealCount dc WHERE dc.currency = :currency")
                     .setParameter("currency", currency)
                     .getSingleResult();
 
             return dealCount;
         }catch(NoResultException ex){
-            System.err.println("Currency "+currency+" not found.");
+            logger.debug("Currency "+currency+" not found.");
+            return null;
+        }
+    }
+
+    @Override
+    public List<DealCount> findAll() {
+        try{
+            List<DealCount> dealCount = (List<DealCount>) getEm()
+                    .createQuery("SELECT dc FROM DealCount dc").getResultList();
+            return dealCount;
+        }catch(NoResultException ex){
+            logger.debug("No currency counts found.");
             return null;
         }
     }
 
     public void persist(DealCount dealCount){
-        em.persist(dealCount);
+        logger.debug("Persisting "+dealCount.getCurrency()+" with value "+dealCount.getCount());
+        getEm().persist(dealCount);
     }
 }

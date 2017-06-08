@@ -2,10 +2,12 @@ package com.progresssoft.manishkr.dao;
 
 import com.progresssoft.manishkr.model.DealCount;
 
+import java.util.List;
+
 public interface DealCountDao {
 
-    public DealCount findByCurrencyCode(String currency);
-
-    public void persist(DealCount dealCount);
+    DealCount findByCurrencyCode(String currency);
+    List<DealCount> findAll();
+    void persist(DealCount dealCount);
 
 }

@@ -2,7 +2,6 @@ package com.progresssoft.manishkr.model;
 
 import javax.persistence.*;
 import java.io.Serializable;
-import java.util.Currency;
 
 @Entity
 @Table(name = "deal_source_file")
@@ -63,4 +62,12 @@ public class DealSourceFile implements Serializable{
         this.invalidRows = invalidRows;
     }
 
+    @Override
+    public String toString() {
+        return "DealSourceFile{" +
+                "sourceFile='" + sourceFile + '\'' +
+                ", validRows=" + validRows +
+                ", invalidRows=" + invalidRows +
+                '}';
+    }
 }

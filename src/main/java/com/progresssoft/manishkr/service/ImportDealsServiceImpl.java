@@ -1,12 +1,10 @@
 package com.progresssoft.manishkr.service;
 
+import com.progresssoft.manishkr.dao.DealCountDao;
+import com.progresssoft.manishkr.dao.DealSourceFileDao;
 import com.progresssoft.manishkr.exception.FileAlreadyProcessedException;
 import com.progresssoft.manishkr.exception.FileMoveException;
 import com.progresssoft.manishkr.exception.FileParseException;
-import com.progresssoft.manishkr.dao.DealCountDao;
-import com.progresssoft.manishkr.dao.DealDao;
-import com.progresssoft.manishkr.dao.DealSourceFileDao;
-import com.progresssoft.manishkr.dao.InvalidDealDao;
 import com.progresssoft.manishkr.model.Deal;
 import com.progresssoft.manishkr.model.DealCount;
 import com.progresssoft.manishkr.model.DealSourceFile;
@@ -16,6 +14,7 @@ import com.progresssoft.manishkr.validate.DealsFileValidator;
 import com.progresssoft.manishkr.validate.MutableInt;
 import com.univocity.parsers.csv.CsvParser;
 import com.univocity.parsers.csv.CsvParserSettings;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -23,35 +22,39 @@ import org.springframework.stereotype.Service;
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 import javax.transaction.Transactional;
-import java.io.*;
-import java.util.*;
+import java.io.BufferedReader;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Service
 @Transactional
 public class ImportDealsServiceImpl implements ImportDealsService{
 
+    private final static org.slf4j.Logger logger = LoggerFactory.getLogger(ImportDealsServiceImpl.class);
+
+    public static final int MULTI_INSERT_SIZE = 1000;
+
     @Autowired
     private DealSourceFileDao dealSourceFileDao;
 
     @Autowired
-    private DealDao dealDao;
+    private DealsFileValidator dealsFileValidator;
 
     @Autowired
-    private InvalidDealDao invalidDealDao;
+    private DealCountDao dealCountDao;
 
     @Autowired
-    DealsFileValidator dealsFileValidator;
-
-    @Autowired
-    DealCountDao dealCountDao;
-
-    @Autowired
-    FileUtil fileUtil;
+    private FileUtil fileUtil;
 
     @PersistenceContext
     private EntityManager em;
 
-    BufferedReader bufferedReader = null;
+    private BufferedReader bufferedReader = null;
 
     @Value("${unprocessed.file.folder}")
     private String unprocessedFileFolder;
@@ -59,143 +62,201 @@ public class ImportDealsServiceImpl implements ImportDealsService{
     @Value("${processed.file.folder}")
     private String processedFileFolder;
 
+    CsvParserSettings csvParserSettings;
+
+    CsvParser csvParser;
+
     public DealSourceFile getFileDetails(String fileName){
-        return dealSourceFileDao.findByfileName(fileName);
+        return getDealSourceFileDao().findByfileName(fileName);
     }
 
     public void processFile(String fileToProcess) throws FileAlreadyProcessedException, FileParseException, FileMoveException {
-        List<String[]> allRows = parseSourceFile(unprocessedFileFolder, fileToProcess);
+        List<String[]> allRows = parseSourceFile(fileToProcess);
 
         List<Deal> deals = new ArrayList<>();
         List<InvalidDeal> invalidDeals = new ArrayList<>();
         Map<String, MutableInt> freq = new HashMap<>();
 
-        // insert file into deal_source_file table
-        DealSourceFile dsf = new DealSourceFile();
-        dsf.setSourceFile(fileToProcess);
-        saveSourceFile(dsf);
-        dealsFileValidator.validate(allRows, dsf, deals, invalidDeals, freq);
-        // validate all rows, create 2 lists (valid,invalid)
-        System.err.println("DEALS>>>>>>>>>>>"+deals.size());
-        System.err.println("INVALID DEALS>>>>>>>>>>>"+invalidDeals.size());
+        DealSourceFile dsf = saveSourceFile(fileToProcess);
+        getDealsFileValidator().validate(allRows, dsf, deals, invalidDeals, freq);
+        persistDeals(deals);
+        persistInvalidDeals(invalidDeals);
+        updateDealCounts(freq);
+        dsf.setValidRows(deals.size());
+        dsf.setInvalidRows(invalidDeals.size());
+        getFileUtil().moveFileToprocessedFileFolder(fileToProcess);
+        try {getBufferedReader().close();} catch (IOException e) {e.printStackTrace();}
+    }
 
-//        for(Deal d : deals){
-//            dealDao.persist(d);
-//            count++;
-//            if ( (count % 50) == 0) {
-//                em.flush();
-//                em.clear();
-//            }
-//        }
-//
-//        count = 0;
-//        for(InvalidDeal d : invalidDeals){
-//            invalidDealDao.persist(d);
-//            count++;
-//            if ( (count % 50) == 0) {
-//                em.flush();
-//                em.clear();
-//            }
-//        }
-
-        StringBuilder query = new StringBuilder();
-        int dealsize = deals.size();
-        int count = 0;
-        for(Deal d : deals){
-            query.append("(").append(d.getId()).append(",'").append(d.getDealId()).append("','").append(d.getFromCurrency()).append("','").append(d.getToCurrency()).append("','").append(d.getDealTimestamp()).append("',").append(d.getAmount()).append(",").append(d.getSourceFile().getId()).append("),");
-            count++;
-            if ( (count % 1000) == 0) {
-                query.setLength(query.length() - 1);
-                query.insert(0,"insert into deal values ");
-                em.createNativeQuery(query.toString()).executeUpdate();
-                query = new StringBuilder();
+    private void updateDealCounts(Map<String, MutableInt> freq) {
+        DealCount dc;
+        for(Map.Entry<String, MutableInt> entry : freq.entrySet()){
+            dc = getDealCountDao().findByCurrencyCode(entry.getKey());
+            if(dc == null){
+                logger.debug("CURRENCY "+entry.getKey()+" fetched was null");
+                dc = new DealCount(entry.getKey(), entry.getValue().get());
+                getDealCountDao().persist(dc);
             }else{
-                if(count == dealsize){
-                    query.setLength(query.length() - 1);
-                    query.insert(0,"insert into deal values ");
-                    em.createNativeQuery(query.toString()).executeUpdate();
-                }
+                logger.debug("CURRENCY "+entry.getKey()+" was found");
+              dc.setCount(dc.getCount()+ entry.getValue().get());
             }
-
         }
+    }
+
+    private void persistInvalidDeals(List<InvalidDeal> invalidDeals) {
+        logger.debug("Persisting "+ invalidDeals.size()+" Deals");
+        StringBuilder query;
+        int dealsize;
+        int count;
         query = new StringBuilder();
         dealsize = invalidDeals.size();
         count = 0;
         for(InvalidDeal d : invalidDeals){
             query.append("(").append(d.getId()).append(",'").append(d.getDealId()).append("','").append(d.getFromCurrency()).append("','").append(d.getToCurrency()).append("','").append(d.getDealTimestamp()).append("',").append(d.getAmount()).append(",").append(d.getSourceFile().getId()).append("),");
             count++;
-            if ( (count % 1000) == 0) {
-                query.setLength(query.length() - 1);
-                query.insert(0,"insert into invalid_deal values ");
-                em.createNativeQuery(query.toString()).executeUpdate();
+            if ( (count % MULTI_INSERT_SIZE) == 0) {
+                multiInsert(query, d);
                 query = new StringBuilder();
             }else{
                 if(count == dealsize){
                     query.setLength(query.length() - 1);
-                    query.insert(0,"insert into invalid_deal values ");
-                    em.createNativeQuery(query.toString()).executeUpdate();
+                    query.insert(0,d.getMultiInsertSql());
+                    getEm().createNativeQuery(query.toString()).executeUpdate();
                 }
             }
 
         }
-        //count valid deals per currency (insert into)
-        DealCount dc;
-        for(Map.Entry<String, MutableInt> entry : freq.entrySet()){
-            //read code from db and update after adding count
-            dc = dealCountDao.findByCurrencyCode(entry.getKey());
-            if(dc == null){
-                System.err.println("CURRENCY "+entry.getKey()+" fetched was null");
-                dc = new DealCount(entry.getKey(), entry.getValue().get());
-                dealCountDao.persist(dc);
-            }else{
-              dc.setCount(dc.getCount()+ entry.getValue().get());
-            }
-        }
-        //update DSF with valid invalid rows
-        dsf.setValidRows(deals.size());
-        dsf.setInvalidRows(invalidDeals.size());
-
-        //TODO move the file to processed file folder
-        fileUtil.moveFile(fileToProcess);
-        try {getBufferedReader().close();} catch (IOException e) {e.printStackTrace();}
     }
 
-    private List<String[]> parseSourceFile(String unprocessedFileFolder, String fileToProcess) throws FileParseException {
-        CsvParserSettings settings = new CsvParserSettings();
-        settings.getFormat().setLineSeparator("\n");
-        CsvParser parser = new CsvParser(settings);
-        setBufferedReader(getReader(unprocessedFileFolder+fileToProcess));
+    private void multiInsert(StringBuilder query, InvalidDeal d) {
+        query.setLength(query.length() - 1);
+        query.insert(0,d.getMultiInsertSql());
+        getEm().createNativeQuery(query.toString()).executeUpdate();
+    }
+
+    private void persistDeals(List<Deal> deals) {
+        logger.debug("Persisting "+ deals.size()+" Deals");
+        StringBuilder query = new StringBuilder();
+        int dealsize = deals.size();
+        int count = 0;
+        for(Deal d : deals){
+            query.append("(").append(d.getId()).append(",'").append(d.getDealId()).append("','").append(d.getFromCurrency()).append("','").append(d.getToCurrency()).append("','").append(d.getDealTimestamp()).append("',").append(d.getAmount()).append(",").append(d.getSourceFile().getId()).append("),");
+            count++;
+            if ( (count % MULTI_INSERT_SIZE) == 0) {
+                query.setLength(query.length() - 1);
+                query.insert(0,d.getMultiInsertSql());
+                getEm().createNativeQuery(query.toString()).executeUpdate();
+                query = new StringBuilder();
+            }else{
+                if(count == dealsize){
+                    query.setLength(query.length() - 1);
+                    query.insert(0,d.getMultiInsertSql());
+                    getEm().createNativeQuery(query.toString()).executeUpdate();
+                }
+            }
+
+        }
+    }
+
+    @Override
+    public List<DealCount> getCurrencyCount() {
+        return getDealCountDao().findAll();
+    }
+
+    public List<String[]> parseSourceFile(String fileToProcess) throws FileParseException {
+        logger.debug("Parsing DealSourceFile "+fileToProcess);
+        csvParserSettings = new CsvParserSettings();
+        csvParserSettings.getFormat().setLineSeparator("\n");
+        csvParser = new CsvParser(csvParserSettings);
+        setBufferedReader(getReader(getUnprocessedFileFolder()+fileToProcess));
         try{
-            return parser.parseAll(getBufferedReader());
+            return csvParser.parseAll(getBufferedReader());
         }catch (Exception e){
             throw new FileParseException("Error parsing file "+fileToProcess);
         }
     }
 
-    private void saveSourceFile(DealSourceFile dsf) throws FileAlreadyProcessedException {
+    private DealSourceFile saveSourceFile(String fileToProcess) throws FileAlreadyProcessedException {
+        logger.debug("Saving DealSourceFile "+fileToProcess);
+        DealSourceFile dsf = new DealSourceFile();
+        dsf.setSourceFile(fileToProcess);
         DealSourceFile check = getFileDetails(dsf.getSourceFile());
         if(check == null){
-            dealSourceFileDao.persist(dsf);
+            getDealSourceFileDao().persist(dsf);
+            return dsf;
         }else{
             throw new FileAlreadyProcessedException("File "+dsf.getSourceFile()+" already processed!");
         }
     }
 
-    private BufferedReader getReader(String csvFile) {
-        BufferedReader br2 = null;
+    private BufferedReader getReader(String csvFile) throws FileParseException {
+        BufferedReader br2;
         try {
             br2 =  new BufferedReader(new InputStreamReader(new FileInputStream(csvFile), "UTF-8"));
         } catch(Exception ex){
-            System.out.println("fix"+ex);
+            throw new FileParseException("Error reading file "+csvFile);
         }
         return br2;
     }
 
-    private BufferedReader getBufferedReader() {
+    public BufferedReader getBufferedReader() {
         return bufferedReader;
     }
 
-    private void setBufferedReader(BufferedReader bufferedReader) {
+    public void setBufferedReader(BufferedReader bufferedReader) {
         this.bufferedReader = bufferedReader;
     }
+
+    public DealSourceFileDao getDealSourceFileDao() {
+        return dealSourceFileDao;
+    }
+
+    public void setDealSourceFileDao(DealSourceFileDao dealSourceFileDao) {
+        this.dealSourceFileDao = dealSourceFileDao;
+    }
+
+    public DealsFileValidator getDealsFileValidator() {
+        return dealsFileValidator;
+    }
+
+    public void setDealsFileValidator(DealsFileValidator dealsFileValidator) {
+        this.dealsFileValidator = dealsFileValidator;
+    }
+
+    public DealCountDao getDealCountDao() {
+        return dealCountDao;
+    }
+
+    public void setDealCountDao(DealCountDao dealCountDao) {
+        this.dealCountDao = dealCountDao;
+    }
+
+    public FileUtil getFileUtil() {
+        return fileUtil;
+    }
+
+    public void setFileUtil(FileUtil fileUtil) {
+        this.fileUtil = fileUtil;
+    }
+
+    public EntityManager getEm() {
+        return em;
+    }
+
+    public void setEm(EntityManager em) {
+        this.em = em;
+    }
+
+    public String getUnprocessedFileFolder() {
+        return unprocessedFileFolder;
+    }
+
+    public void setUnprocessedFileFolder(String unprocessedFileFolder) {
+        this.unprocessedFileFolder = unprocessedFileFolder;
+    }
+
+    public void setProcessedFileFolder(String processedFileFolder) {
+        this.processedFileFolder = processedFileFolder;
+    }
+
 }
