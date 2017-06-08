@@ -6,11 +6,36 @@
     <title>Title</title>
 </head>
 <body>
-<h1>File Details</h1>
-File Name : ${filedetails.sourceFile}
-Valid Rows : ${filedetails.validRows}
-Invalid Rows: ${filedetails.invalidRows}
+<style>
+    table {
+        font-family: arial, sans-serif;
+        border-collapse: collapse;
+        width: 100%;
+    }
 
-<input type="button" value="HOME" onclick="location.href='/importdeals/all'">
+    td, th {
+        border: 1px solid #dddddd;
+        text-align: left;
+        padding: 8px;
+    }
+
+    tr:nth-child(even) {
+        background-color: #dddddd;
+    }
+</style>
+<h1>File Details</h1>
+    <table>
+        <tr>
+            <td>File Name :<c:out value="${filedetails.sourceFile}" /></td>
+        </tr>
+        <tr>
+            <td>Valid Rows : <c:out value="${filedetails.validRows}" /></td>
+        </tr>
+        <tr>
+            <td>Invalid Rows : <c:out value="${filedetails.invalidRows}" /></td>
+        </tr>
+    </table>
+
+<br><input type="button" value="HOME" onclick="location.href='/importdeals/all'">
 </body>
 </html>
